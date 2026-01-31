@@ -1,0 +1,33 @@
+name: Build and Deploy to EKS
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: arn:aws:iam::483739914637:role/github-actions-ecr
+        aws-region: us-east-1
+
+    - name: Login to ECR
+      run: |
+        aws ecr get-login-password \
+        | docker login --username AWS \
+        --password-stdin 483739914637.dkr.ecr.us-east-1.amazonaws.com
+
+    - name: Build image
+      run: |
+        mvn package -DskipTests
+        docker build -t demo-app .
+
+    - name: Push image
+      run: |
+        docker tag demo-app:latest 483739914637.dkr.ecr.us-east-1.amazonaws.com/demo-app:latest
+        docker push 483739914637.dkr.ecr.us-east-1.amazonaws.com/demo-app:latest

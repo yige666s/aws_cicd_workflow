@@ -1,0 +1,36 @@
+# Git
+.git
+.gitignore
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.sum
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+bin/
+dist/
+
+# Documentation
+README.md
+docs/
+
+# CI/CD
+.github/
+buildspec.yml

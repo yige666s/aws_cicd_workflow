@@ -1,0 +1,15 @@
+version: 0.0
+os: linux
+
+# AWS CodeDeploy 应用规范文件
+# 用于定义部署到ECS的配置
+
+Resources:
+  - TargetService:
+      Type: AWS::ECS::Service
+      Properties:
+        TaskDefinition: <TASK_DEFINITION>
+        LoadBalancerInfo:
+          ContainerName: "aws-cicd-app"
+          ContainerPort: 8080
+        PlatformVersion: "LATEST"
