@@ -1,6 +1,6 @@
 # AWS CI/CD Workflow - Golang 示例项目
 
-这是一个用于学习和实践AWS CI/CD工作流的Golang示例项目。项目展示了如何使用GitHub Actions和AWS CodeBuild构建和部署容器化的Go应用到AWS ECS。
+这是一个用于学习和实践AWS CI/CD工作流的Golang示例项目。项目展示了如何使用GitHub Actions构建和部署容器化的Go应用到AWS EKS Auto Mode。
 
 ## 📋 项目概述
 
@@ -9,10 +9,9 @@
 - ✅ 完整的单元测试
 - ✅ Docker容器化配置
 - ✅ GitHub Actions CI/CD流水线
-- ✅ AWS CodeBuild配置
-- ✅ AWS ECS部署配置
+- ✅ AWS EKS Auto Mode 部署
+- ✅ Kubernetes 配置文件
 - ✅ Terraform基础设施即代码
-- ✅ 安全扫描集成
 
 ## 🏗️ 项目结构
 
@@ -23,15 +22,13 @@
 ├── go.mod                    # Go模块文件
 ├── Dockerfile                # Docker镜像配置
 ├── .dockerignore            # Docker忽略文件
-├── buildspec.yml            # AWS CodeBuild配置
-├── appspec.yml              # AWS CodeDeploy配置
+├── Makefile                 # 构建和部署命令
 ├── .github/
 │   └── workflows/
 │       └── deploy.yml       # GitHub Actions工作流
-├── aws/
-│   ├── iam-policy.json      # IAM策略文档
-│   ├── setup-infrastructure.sh  # 基础设施设置脚本
-│   └── setup-ecs-task.sh    # ECS任务定义脚本
+├── k8s/
+│   ├── deployment.yaml      # Kubernetes Deployment配置
+│   └── service.yaml         # Kubernetes Service配置
 └── terraform/
     └── main.tf              # Terraform配置
 ```
@@ -77,24 +74,11 @@ docker run -p 8080:8080 aws-cicd-app
 
 - AWS账户
 - AWS CLI已配置
-- 具有适当权限的IAM用户
+- 具有适当权限的IAM用户或角色
 - Docker已安装
+- kubectl已安装
 
-### 方法1: 使用Shell脚本
-
-1. **设置AWS基础设施**
-```bash
-chmod +x aws/setup-infrastructure.sh
-./aws/setup-infrastructure.sh
-```
-
-2. **创建ECS任务定义**
-```bash
-chmod +x aws/setup-ecs-task.sh
-./aws/setup-ecs-task.sh
-```
-
-### 方法2: 使用Terraform
+### 方法1: 使用Terraform
 
 1. **初始化Terraform**
 ```bash
@@ -112,52 +96,56 @@ terraform plan
 terraform apply
 ```
 
-### 方法3: 使用AWS CodeBuild
+### 方法2: 使用GitHub Actions（推荐）
 
-1. **在AWS Console中创建CodeBuild项目**
-   - 源: 连接到GitHub仓库
-   - 环境: 使用标准Amazon Linux 2镜像
-   - Buildspec: 使用仓库中的buildspec.yml
+1. **配置GitHub OIDC**
+   - 在AWS中创建OIDC提供商
+   - 创建IAM角色并配置信任关系
+   - 更新 `.github/workflows/deploy.yml` 中的角色ARN
 
-2. **配置环境变量**
-   - `AWS_ACCOUNT_ID`: 你的AWS账户ID
-   - `AWS_DEFAULT_REGION`: 你的AWS区域
-   - `IMAGE_REPO_NAME`: ECR仓库名称
-   - `IMAGE_TAG`: 镜像标签（如$CODEBUILD_RESOLVED_SOURCE_VERSION）
-   - `CONTAINER_NAME`: 容器名称
+2. **推送代码到main分支**
+```bash
+git add .
+git commit -m "Deploy to EKS"
+git push origin main
+```
+
+GitHub Actions会自动：
+- 构建Docker镜像
+- 推送到ECR
+- 部署到EKS集群
 
 ## 🔄 CI/CD流水线
 
 ### GitHub Actions工作流
 
 工作流在以下情况下触发：
-- 推送到`main`或`develop`分支
-- 创建针对`main`分支的Pull Request
+- 推送到`main`分支
 
-流水线包含三个主要作业：
+流水线执行以下步骤：
 
-1. **测试** (`test`)
-   - 运行Go单元测试
-   - 生成代码覆盖率报告
-   - 上传覆盖率到Codecov
+1. **配置AWS凭证**
+   - 使用OIDC方式获取临时凭证
+   - 无需在GitHub中存储长期密钥
 
-2. **构建和部署** (`build-and-deploy`)
+2. **构建和推送镜像**
+   - 登录到Amazon ECR
    - 构建Docker镜像
-   - 推送到Amazon ECR
-   - 更新ECS服务
+   - 推送镜像到ECR
 
-3. **安全扫描** (`security-scan`)
-   - 使用Trivy扫描漏洞
-   - 上传结果到GitHub Security
+3. **部署到EKS**
+   - 更新kubeconfig
+   - 替换Deployment中的镜像标签
+   - 应用Kubernetes配置
+   - 等待滚动更新完成
 
-### 配置GitHub Secrets
+### 配置要求
 
-在GitHub仓库设置中添加以下secrets：
-
-```
-AWS_ACCESS_KEY_ID=your_access_key_id
-AWS_SECRET_ACCESS_KEY=your_secret_access_key
-```
+确保在AWS中正确配置了：
+- OIDC提供商（GitHub）
+- IAM角色及信任策略
+- ECR仓库
+- EKS集群
 
 ## 🔧 配置说明
 
@@ -165,19 +153,16 @@ AWS_SECRET_ACCESS_KEY=your_secret_access_key
 
 - `PORT`: 应用监听端口（默认: 8080）
 - `AWS_REGION`: AWS区域（默认: us-east-1）
-- `ECR_REPOSITORY`: ECR仓库名称
-- `ECS_CLUSTER`: ECS集群名称
-- `ECS_SERVICE`: ECS服务名称
+- `ECR_REPO`: ECR仓库名称
+- `EKS_CLUSTER_NAME`: EKS集群名称
 
 ### AWS资源
 
 项目使用以下AWS服务：
 - **Amazon ECR**: 存储Docker镜像
-- **Amazon ECS**: 运行容器化应用
-- **AWS Fargate**: 无服务器容器运行环境
+- **Amazon EKS Auto Mode**: 运行Kubernetes工作负载
+- **AWS IAM**: 身份和访问管理（OIDC）
 - **Amazon CloudWatch**: 日志和监控
-- **AWS CodeBuild**: 构建服务（可选）
-- **AWS CodePipeline**: CI/CD流水线（可选）
 
 ## 📊 API端点
 
@@ -224,27 +209,27 @@ go tool cover -html=coverage.out
 
 ### CloudWatch日志
 
-应用日志自动发送到CloudWatch：
-```
-日志组: /ecs/aws-cicd-app
+应用日志可以通过kubectl查看：
+```bash
+kubectl logs -f deployment/app
 ```
 
 ### 健康检查
 
-ECS任务定义包含健康检查配置：
-- 间隔: 30秒
-- 超时: 5秒
-- 重试次数: 3次
-- 启动期: 60秒
+可以通过以下方式检查应用健康状态：
+```bash
+kubectl get pods
+kubectl describe deployment app
+```
 
 ## 🔒 安全最佳实践
 
-1. ✅ 使用IAM角色而非访问密钥
+1. ✅ 使用OIDC而非长期访问密钥
 2. ✅ 启用ECR镜像扫描
-3. ✅ 使用Trivy进行漏洞扫描
+3. ✅ 使用Kubernetes RBAC控制访问
 4. ✅ 在Secrets Manager中存储敏感信息
 5. ✅ 最小权限原则（Least Privilege）
-6. ✅ 启用CloudWatch Container Insights
+6. ✅ 定期更新依赖和基础镜像
 
 ## 🛠️ 故障排查
 
@@ -256,20 +241,24 @@ ECS任务定义包含健康检查配置：
 docker system prune -a
 ```
 
-**问题**: ECS任务无法启动
+**问题**: Pod无法启动
 ```bash
-# 检查CloudWatch日志
-aws logs tail /ecs/aws-cicd-app --follow
+# 检查Pod状态
+kubectl get pods
+kubectl describe pod <pod-name>
+kubectl logs <pod-name>
 ```
 
 **问题**: GitHub Actions部署失败
-- 确认AWS credentials正确配置
+- 确认AWS OIDC配置正确
 - 检查ECR仓库是否存在
-- 验证IAM权限
+- 验证IAM角色权限
+- 确认EKS集群可访问
 
 ## 📚 学习资源
 
-- [AWS ECS Documentation](https://docs.aws.amazon.com/ecs/)
+- [AWS EKS Documentation](https://docs.aws.amazon.com/eks/)
+- [Kubernetes Documentation](https://kubernetes.io/docs/)
 - [GitHub Actions Documentation](https://docs.github.com/en/actions)
 - [Docker Documentation](https://docs.docker.com/)
 - [Golang Documentation](https://golang.org/doc/)
