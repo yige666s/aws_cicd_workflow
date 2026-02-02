@@ -12,7 +12,7 @@ env:
   AWS_REGION: us-east-1
   ECR_REGISTRY: 483739914637.dkr.ecr.us-east-1.amazonaws.com
   ECR_REPO: app
-  EKS_CLUSTER_NAME: eks-auto-demo
+  EKS_CLUSTER_NAME: ferocious-rock-goose
 
 jobs:
   build-and-deploy:
