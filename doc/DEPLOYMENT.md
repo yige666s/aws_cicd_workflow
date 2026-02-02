@@ -19,6 +19,29 @@
 ### IAM 角色
 - **GitHub Actions 角色**: `arn:aws:iam::483739914637:role/github_workflow_role`
 - **认证方式**: OIDC
+- **EKS 访问策略**: AmazonEKSClusterAdminPolicy
+
+### EKS 访问配置
+
+GitHub Actions 需要访问 EKS 集群来部署应用。已配置：
+
+```bash
+# 创建访问入口
+aws eks create-access-entry \
+  --cluster-name ferocious-rock-goose \
+  --region us-east-1 \
+  --principal-arn arn:aws:iam::483739914637:role/github_workflow_role \
+  --type STANDARD \
+  --username github-actions
+
+# 关联集群管理员策略
+aws eks associate-access-policy \
+  --cluster-name ferocious-rock-goose \
+  --region us-east-1 \
+  --principal-arn arn:aws:iam::483739914637:role/github_workflow_role \
+  --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy \
+  --access-scope type=cluster
+```
 
 ## 常用命令
 
